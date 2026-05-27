@@ -1,7 +1,10 @@
 # backend/main.py
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+from sqlalchemy import func
+import datetime
 
 # Importações dos seus arquivos locais
 import models
@@ -16,6 +19,16 @@ app = FastAPI(
     description="API de Gestão para Oficina de Afiação",
     version="1.0.0"
 )
+
+# Configuração de CORS para permitir que o Frontend comunique com a API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Em produção, colocaríamos a URL exata. Em dev local, "*" permite todas.
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE)
+    allow_headers=["*"],  # Permite todos os cabeçalhos
+)
+# ===========================
 
 # ==========================================
 # ENDPOINTS: PRODUTOS E SERVIÇOS
@@ -120,3 +133,64 @@ def buscar_venda(venda_id: int, db: Session = Depends(get_db)):
     if not venda:
         raise HTTPException(status_code=404, detail="Venda não encontrada")
     return venda
+
+# ==========================================
+# ENDPOINTS: DESPESAS (SAÍDAS)
+# ==========================================
+
+@app.post("/despesas/", response_model=schemas.DespesaResponse, status_code=status.HTTP_201_CREATED, tags=["Financeiro"])
+def registrar_despesa(despesa: schemas.DespesaCreate, db: Session = Depends(get_db)):
+    nova_despesa = models.Despesa(**despesa.model_dump())
+    db.add(nova_despesa)
+    db.commit()
+    db.refresh(nova_despesa)
+    return nova_despesa
+
+@app.get("/despesas/", response_model=List[schemas.DespesaResponse], tags=["Financeiro"])
+def listar_despesas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(models.Despesa).order_by(models.Despesa.data_hora.desc()).offset(skip).limit(limit).all()
+
+@app.delete("/despesas/{despesa_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Financeiro"])
+def deletar_despesa(despesa_id: int, db: Session = Depends(get_db)):
+    despesa = db.query(models.Despesa).filter(models.Despesa.id == despesa_id).first()
+    if not despesa:
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    db.delete(despesa)
+    db.commit()
+    return None
+
+# ==========================================
+# ENDPOINTS: RELATÓRIOS E FLUXO DE CAIXA
+# ==========================================
+
+@app.get("/financeiro/fluxo-caixa", response_model=schemas.RelatorioFinanceiro, tags=["Relatórios"])
+def relatorio_fluxo_caixa(
+    data_inicio: datetime.date, 
+    data_fim: datetime.date, 
+    db: Session = Depends(get_db)
+):
+    # Converte as datas para cobrir do primeiro minuto do dia inicial até o último minuto do dia final
+    inicio_dt = datetime.datetime.combine(data_inicio, datetime.time.min)
+    fim_dt = datetime.datetime.combine(data_fim, datetime.time.max)
+
+    # Soma de todas as vendas (Entradas) no período
+    total_entradas = db.query(func.sum(models.Venda.valor_total)).filter(
+        models.Venda.data_hora >= inicio_dt,
+        models.Venda.data_hora <= fim_dt
+    ).scalar() or 0.0
+
+    # Soma de todas as despesas (Saídas) no período
+    total_saidas = db.query(func.sum(models.Despesa.valor)).filter(
+        models.Despesa.data_hora >= inicio_dt,
+        models.Despesa.data_hora <= fim_dt
+    ).scalar() or 0.0
+
+    saldo_liquido = total_entradas - total_saidas
+
+    return {
+        "data_inicio": data_inicio,
+        "data_fim": data_fim,
+        "total_entradas": round(total_entradas, 2),
+        "total_saidas": round(total_saidas, 2),
+        "saldo_liquido": round(saldo_liquido, 2)
+    }

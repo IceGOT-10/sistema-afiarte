@@ -66,3 +66,31 @@ class VendaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+# ==========================
+# SCHEMAS DE DESPESAS (SAÍDAS)
+# ==========================
+class DespesaBase(BaseModel):
+    descricao: str = Field(..., example="Conta de Energia")
+    categoria: str = Field(..., example="Custo Fixo")
+    valor: float = Field(..., gt=0, example=150.50)
+    observacoes: Optional[str] = None
+
+class DespesaCreate(DespesaBase):
+    pass
+
+class DespesaResponse(DespesaBase):
+    id: int
+    data_hora: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+# ==========================
+# SCHEMAS DE RELATÓRIOS
+# ==========================
+class RelatorioFinanceiro(BaseModel):
+    data_inicio: datetime.date
+    data_fim: datetime.date
+    total_entradas: float
+    total_saidas: float
+    saldo_liquido: float

@@ -37,3 +37,14 @@ class ItemVenda(Base):
 
     venda = relationship("Venda", back_populates="itens")
     produto_servico = relationship("ProdutoServico")
+
+class Despesa(Base):
+    __tablename__ = "despesas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    data_hora = Column(DateTime, default=datetime.datetime.utcnow)
+    descricao = Column(String, nullable=False) # Ex: Compra de rebolo
+    categoria = Column(String, nullable=False) # Ex: Insumos, Energia, Ferramentas
+    valor = Column(Float, nullable=False)
+    observacoes = Column(Text, nullable=True)
+    
