@@ -68,6 +68,7 @@ sistema-afiarte/
 │   └── styles.css        # Estilização visual do sistema
 │
 └── .gitignore            # Arquivos e pastas ignorados pelo Git
+```
 🚀 Como Executar o Projeto
 Pré-requisitos
 Certifique-se de ter instalado em sua máquina:
